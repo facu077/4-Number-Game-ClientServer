@@ -1,15 +1,19 @@
-#include<stdio.h>
-#include<string.h>    //strlen
-#include<sys/socket.h>
-#include<arpa/inet.h> //inet_addr
-#include<unistd.h>    //write
- 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+char * writeAndRead(int socket, char * message);
+
 int main(int argc , char *argv[])
 {
-    int socket_desc , client_sock , c , read_size;
-    struct sockaddr_in server , client;
+    int socket_desc, client_sock, c;
+    struct sockaddr_in server, client;
     char client_message[2000];
     char server_message[2000];
+    int keep_playing = 1;
     char *ip;
     pid_t pid;
      
@@ -50,47 +54,39 @@ int main(int argc , char *argv[])
         pid = fork();
         if (pid == 0)
         {
-            // Receive messages from client
-            // The first message should be the name of the user
-            // so we send a welcome message with that
+            // Read client name
             read(client_sock, client_message, sizeof(client_message));
             // TODO Look in the log.txt file for the user data
             strcpy(server_message, "Welcome ");
             strcat(server_message, client_message);
-            strcat(server_message, ", you have played 8 times, with an average of 4 attempts per correct answer");
-            //Send the message back to client
+            strcat(server_message, ", you have played 8 times, with an average of 4 attempts per correct answer\n");
+            //Send the welcome message to client
             write(client_sock, server_message, strlen(server_message));
-            while((read_size = recv(client_sock , client_message , sizeof(client_message) , 0)) > 0)
+            while(keep_playing == 1)
             {
-                // TODO calculate new number
-                // Send new number
-                strcpy(server_message, "Is your number 1234?");
-                write(client_sock, server_message, strlen(server_message));
+                // TODO Generate new number using threads
+                // Ask the number to the client
+                strcpy(client_message, writeAndRead(client_sock, "Is your number 1234?\n"));
                 // Read user input
-                read_size = read(client_sock, client_message, sizeof(client_message));
                 if (strcmp(client_message, "yes") == 0)
                 {
                     // GAME OVER
-                    write(client_sock, "-1", 2);
+                    // TODO save result in log.txt
+                    write(client_sock, "-1", 3);
+                    keep_playing = 0;
                 }
                 else
                 {
                     // Keep playing
-                    // TODO Ask for regular numbers
-                    // TODO Ask for good numbers
-                    write(client_sock, "Keep playing", 12);
+                    // Ask for regular numbers
+                    writeAndRead(client_sock, "Regular numbers?\n");
+                    // Ask for good numbers
+                    writeAndRead(client_sock, "Good numbers?\n");
                 }
             }
-            
-            if(read_size == 0)
-            {
-                puts("Client disconnected");
-                fflush(stdout);
-            }
-            else if(read_size == -1)
-            {
-                perror("recv failed");
-            }
+            puts("Client disconnected");
+            fflush(stdout);
+
             close(client_sock);
             puts("Client socket closed");
             return 0;
@@ -100,3 +96,32 @@ int main(int argc , char *argv[])
     puts("Server socket closed");
     return 0;
 }
+
+// TODO move all functions to some service.c
+char * writeAndRead(int socket, char * message)
+{
+    int read_size;
+    // char answer[2000];
+    char* answer = (char*)malloc(sizeof(char)*(2000));
+    // Write to client
+    write(socket, message, strlen(message));
+    // Read answer from client
+    read_size = read(socket, answer, sizeof(answer));
+    if(read_size == -1)
+    {
+        perror("read failed");
+    }
+    // TODO Free answer (how?)
+    return answer;
+}
+
+/* const char * readAndWrite(int socket, char * message)
+{
+    int read_size;
+    char answer[2000];
+    // Write to client
+    write(socket, message, strlen(message));
+    // Read answer from client
+    read_size = read(socket, answer, sizeof(answer));
+    return answer;
+} */
