@@ -4,12 +4,32 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <pthread.h>
 #include "service.h"
+
+// TODO avoid this global variable
+int pos = 0;
+
+void * calculate_number(void * args)
+{
+    int new_number, last_number;
+	printf("I'm the thread!\n");
+    Guess * guesses = args;
+    printf("I have: good: %d, regular: %d, new number: %s\n",guesses[pos].good, guesses[pos].regular, guesses[pos].number);
+    last_number = atoi(guesses[pos].number);
+    new_number = last_number + 1;
+
+    // TODO check if it is really necessary that guess.number be an string
+    sprintf(guesses[pos+1].number, "%d", new_number);
+	pthread_exit(NULL);
+}
+
 
 int main(int argc , char *argv[])
 {
     int socket_desc, client_sock, c;
     struct sockaddr_in client;
+    Guess * guesses;
     char client_message[2000];
     char server_message[2000];
     int keep_playing = 1;
@@ -18,6 +38,7 @@ int main(int argc , char *argv[])
 
     socket_desc = start_server();
     c = sizeof(struct sockaddr_in);
+    guesses = malloc(10 * sizeof *guesses);
 
     //Accept connection from an incoming client
     while ((client_sock = accept(socket_desc,(struct sockaddr *)&client,(socklen_t*)&c))>0)
@@ -31,10 +52,15 @@ int main(int argc , char *argv[])
             // Ask client name
             strcpy(client_message, writeAndRead(client_sock, "Please enter your name: "));
             // TODO Look in the log.txt file for the user data
+            // TODO Generate random number
+            strcpy(guesses[0].number, "1234");
+            // TODO Improve this strcpy, strcat,strcat...
             strcpy(server_message, "Welcome ");
             strcat(server_message, client_message);
             strcat(server_message, ", you have played 8 times, with an average of 4 attempts per correct answer\n");
-            strcat(server_message, "Is your number 1234?\n");
+            strcpy(server_message, "Is your number ");
+            strcat(server_message, guesses[0].number);
+            strcat(server_message, "?\n");
             // Set welcome message to client with a random number
             while(keep_playing == 1)
             {
@@ -52,11 +78,21 @@ int main(int argc , char *argv[])
                 {
                     // Keep playing
                     // Ask for regular numbers
-                    writeAndRead(client_sock, "Regular numbers?\n");
+                    guesses[pos].regular = atoi(writeAndRead(client_sock, "Regular numbers?\n"));
                     // Ask for good numbers
-                    writeAndRead(client_sock, "Good numbers?\n");
+                    guesses[pos].good = atoi(writeAndRead(client_sock, "Good numbers?\n"));
                     // TODO Generate new number using threads
-                    strcpy(server_message, "Is your number 1234?\n");
+                    pthread_t tid;
+                    if(pthread_create(&tid, NULL, calculate_number, guesses) != 0)
+                    {
+                        printf("Error creating thread\n");
+                        return -1;
+                    }
+                    pthread_join(tid,NULL);
+                    pos++;
+                    strcpy(server_message, "Is your number ");
+                    strcat(server_message, guesses[pos].number);
+                    strcat(server_message, "?\n");
                 }
             }
             puts("Client disconnected");
@@ -64,6 +100,8 @@ int main(int argc , char *argv[])
 
             close(client_sock);
             puts("Client socket closed");
+
+            free(guesses);
             return 0;
         }
     }

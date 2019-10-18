@@ -6,6 +6,8 @@
 #include <string.h>
 #include "service.h"
 
+// SERVER
+
 int start_server()
 {
     int socket_desc;
@@ -56,3 +58,5 @@ char * writeAndRead(int socket, char * message)
     // TODO Free answer (how?)
     return answer;
 }
+
+// THREADS
