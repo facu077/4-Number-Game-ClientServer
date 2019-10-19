@@ -4,7 +4,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <pthread.h>
 #include "service.h"
+
+void generate_number(Guess * guesses, int lenght);
 
 // SERVER
 
@@ -60,3 +63,58 @@ char * writeAndRead(int socket, char * message)
 }
 
 // THREADS
+// TODO send lock by parameter??
+// pthread_mutex_t lock;
+// Is mutex worth it? Should use signals?
+// All the threads could start on a random number and when a compatible number is found
+// a signal can be emited that would kill/stop all the other threads
+void * thread_rutine(void * args)
+{
+    // pthread_mutex_lock(&lock);
+    int pos;
+    Thread_data * data = args;
+    Guess * guesses;
+	printf("I'm the thread!\n");
+    guesses = data -> guesses;
+    pos = data -> pos;
+    printf("I have: good: %d, regular: %d, new number: %s\n",guesses[pos].good, guesses[pos].regular, guesses[pos].number);
+    generate_number(guesses, pos);
+    // pthread_mutex_unlock(&lock);
+	pthread_exit(NULL);
+}
+
+int run_threads(Thread_data data, int threads)
+{
+    int i;
+    pthread_t tid[threads];
+
+    // if (pthread_mutex_init(&lock, NULL) != 0) 
+    // { 
+    //     printf("\n mutex init has failed\n"); 
+    //     return -1; 
+    // }
+
+    for (i = 0; i < threads; i++)
+    {
+        if(pthread_create(&tid[i], NULL, thread_rutine, &data) != 0)
+        {
+            return -1;
+        }
+        pthread_join(tid[i],NULL);
+    }
+    // pthread_mutex_destroy(&lock);
+    return 0;
+}
+
+// NUMBER CALCULATION
+
+void generate_number(Guess * guesses, int lenght)
+{
+    // TODO Implement all the logic that would calculate the new number
+    int last_number, new_number;
+    last_number = atoi(guesses[lenght].number);
+    new_number = last_number + 1;
+
+    // TODO check if it is really necessary that guess.number be an string
+    sprintf(guesses[lenght+1].number, "%d", new_number);
+}
