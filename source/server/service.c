@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
+#include <netdb.h>
 #include "service.h"
 
 void generate_number(Guess * guesses, int lenght);
@@ -13,47 +14,72 @@ void generate_number(Guess * guesses, int lenght);
 
 int start_server()
 {
-    int socket_desc;
-    struct sockaddr_in server;
+    struct addrinfo hints;
+    struct addrinfo *result, *rp;
+    int sfd, s;
 
-    // Create socket
-    socket_desc = socket(AF_INET , SOCK_STREAM , 0);
-    if (socket_desc == -1)
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
+    hints.ai_socktype = SOCK_STREAM; /* Stream socket */
+    hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
+
+
+    s = getaddrinfo(NULL, "8888", &hints, &result);
+    if (s != 0)
     {
-        printf("Could not create socket");
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+        exit(EXIT_FAILURE);
     }
-    puts("Socket created");
-     
-    // Prepare the sockaddr_in structure
-    server.sin_family = AF_INET;
-    server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons( 8888 );
-     
-    // Bind
-    if (bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
+
+    /* getaddrinfo() returns a list of address structures.
+        Try each address until we successfully bind(2).
+        If socket(2) (or bind(2)) fails, we (close the socket
+        and) try the next address. */
+
+    for (rp = result; rp != NULL; rp = rp->ai_next)
     {
-        perror("bind failed");
-        return 1;
+        sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sfd == -1)
+        {
+            continue;
+        }
+        if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0)
+        {
+            /* Success */
+            puts("Bind done");
+            break;
+        }
+
+        close(sfd);
     }
-    puts("bind done");
-     
-    // Listen
-    listen(socket_desc , 3);
-     
+
+    if (rp == NULL)
+    {
+        /* No address succeeded */
+        perror("Could not bind");
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(sfd, 3) < 0)
+    {
+        perror("Error in syscall listen");
+        exit(EXIT_FAILURE);
+    }
+    freeaddrinfo(result);
     puts("Waiting for incoming connections...");
-
-    return socket_desc;
+    return sfd;
 }
 
 char * writeAndRead(int socket, char * message)
 {
     int read_size;
-    // char answer[2000];
-    char* answer = (char*)malloc(sizeof(char)*(2000));
+    char * answer;
+    answer = calloc(2000, sizeof(char));
     // Write to client
     write(socket, message, strlen(message));
     // Read answer from client
     read_size = read(socket, answer, sizeof(answer));
+
     if(read_size == -1)
     {
         perror("read failed");

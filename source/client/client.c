@@ -12,8 +12,13 @@ int main(int argc , char *argv[])
     int sock, read_size;
     int keep_playing = 1;
     char message[1000] , server_reply[2000];
-     
-    sock = connect_server();
+
+    if (argc != 2)
+    {
+        printf("Usage: ./client <server_ip>\n");
+        return 0;
+    }
+    sock = connect_server(argv[1]);
     memset(message, 0, sizeof message);
 
     // keep communicating with server

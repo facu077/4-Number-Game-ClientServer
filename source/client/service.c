@@ -4,33 +4,45 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <netdb.h>
 #include "service.h"
 
-int connect_server()
+int connect_server(char * server_ip)
 {
+    char *hostname = server_ip;
+    char *service = "8888";
+    struct addrinfo hints, *res;
+    int err;
     int sock;
-    struct sockaddr_in server;
 
-    // Create socket
-    sock = socket(AF_INET , SOCK_STREAM , 0);
-    if (sock == -1)
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = PF_UNSPEC;
+
+
+    if ((err = getaddrinfo(hostname, service, &hints, &res)) != 0)
     {
-        printf("Could not create socket");
+        printf("error %d : %s\n", err, gai_strerror(err));
+        return -1;
+    }
+
+    sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sock < 0)
+    {
+        perror("create socket failed");
+        return -1;
     }
     puts("Socket created");
-     
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server.sin_family = AF_INET;
-    server.sin_port = htons( 8888 );
- 
-    // Connect to server
-    if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
+
+    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0)
     {
-        perror("connect failed. Error");
+        perror("connect failed");
         return 1;
     }
-     
-    puts("Connected\n");
+
+    freeaddrinfo(res);
+
+    puts("Connected");
 
     return sock;
 }

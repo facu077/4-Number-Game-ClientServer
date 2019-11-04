@@ -4,50 +4,58 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <netdb.h>
 #include "service.h"
 
 int main(int argc , char *argv[])
 {
-    int socket_desc, client_sock, c, pos;
+    int socket_desc, client_sock, client_len, pos;
     struct sockaddr_in client;
     Guess * guesses;
     Thread_data data;
     char client_message[2000];
     char server_message[2000];
     int keep_playing = 1;
-    char *ip;
+    char ip[INET6_ADDRSTRLEN];
     pid_t pid;
 
     socket_desc = start_server();
-    c = sizeof(struct sockaddr_in);
+    client_len = sizeof(struct sockaddr_in);
     guesses = malloc(10 * sizeof *guesses);
 
     //Accept connection from an incoming client
-    while ((client_sock = accept(socket_desc,(struct sockaddr *)&client,(socklen_t*)&c))>0)
+    while ((client_sock = accept(socket_desc,(struct sockaddr *)&client,(socklen_t*)&client_len))>0)
     {
         puts("Connection accepted");
-        ip = inet_ntoa(client.sin_addr);
-        printf("Client IP: %s and PORT: %d\n",ip, ntohs(client.sin_port));
+
+        if (getnameinfo((struct sockaddr*)&client,client_len,ip,sizeof(ip), 0,0,NI_NUMERICHOST) != 0)
+        {
+            perror("Cannot getaddrinfo");
+            return -1;
+        }
+        printf("Client IP: %s and PORT: %d\n", ip, ntohs(client.sin_port));
+
+
         pid = fork();
         if (pid == 0)
         {
             // Ask client name
-            strcpy(client_message, writeAndRead(client_sock, "Please enter your name: "));
+            strncpy(client_message, writeAndRead(client_sock, "Please enter your name: "), sizeof(client_message));
             // TODO Look in the log.txt file for the user data
             // TODO Generate random number
-            strcpy(guesses[0].number, "1234");
+            strncpy(guesses[0].number, "1234", 5);
             // TODO Improve this (and all) strcpy, strcat,strcat...
-            strcpy(server_message, "Welcome ");
-            strcat(server_message, client_message);
-            strcat(server_message, ", you have played 8 times, with an average of 4 attempts per correct answer\n");
-            strcat(server_message, "Is your number ");
-            strcat(server_message, guesses[0].number);
-            strcat(server_message, "?\n");
+            strncpy(server_message, "Welcome ", 9);
+            strncat(server_message, client_message, sizeof(client_message));
+            strncat(server_message, ", you have played 8 times, with an average of 4 attempts per correct answer\n", 77);
+            strncat(server_message, "Is your number ", 16);
+            strncat(server_message, guesses[0].number, 4);
+            strncat(server_message, "?\n", 3);
             // Set welcome message to client with a random number
             while(keep_playing == 1)
             {
                 // Ask the number to the client
-                strcpy(client_message, writeAndRead(client_sock, server_message));
+                strncpy(client_message, writeAndRead(client_sock, server_message), sizeof(client_message));
                 // Read user input
                 if (strcmp(client_message, "yes") == 0)
                 {
@@ -74,9 +82,9 @@ int main(int argc , char *argv[])
                     }
                     pos++;
                     // Todo improve this message generation
-                    strcpy(server_message, "Is your number ");
-                    strcat(server_message, guesses[pos].number);
-                    strcat(server_message, "?\n");
+                    strncpy(server_message, "Is your number ", 16);
+                    strncat(server_message, guesses[pos].number, 4);
+                    strncat(server_message, "?\n", 3);
                 }
             }
             puts("Client disconnected");
