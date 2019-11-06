@@ -78,7 +78,7 @@ int main(int argc , char *argv[])
             char client_message[2000], server_message[2000];
             int keep_playing = 1;
 
-            guesses = malloc(10 * sizeof *guesses);
+            guesses = calloc(10, sizeof *guesses);
 
             // Ask client name
             strncpy(client_message, writeAndRead(client_sock, "Please enter your name: "), sizeof(client_message));
@@ -93,7 +93,8 @@ int main(int argc , char *argv[])
             strncat(inter_message, ";\n", 3);
             write(pipe_fd[1], inter_message, strlen(inter_message));
             // TODO Generate random number
-            strncpy(guesses[0].number, "1234", 5);
+            // strncpy(guesses[0].number, itoa(generate_number()), 5);
+            sprintf(guesses[0].number, "%d", generate_number());
             // TODO Improve this (and all) strcpy, strcat,strcat...
             strncpy(server_message, "Welcome ", 9);
             strncat(server_message, client_message, sizeof(client_message));
@@ -126,7 +127,7 @@ int main(int argc , char *argv[])
                     data.guesses = guesses;
                     data.pos = pos;
                     //  Run the threads that will find the new number
-                    if ((run_threads(data, 2) != 0))
+                    if ((run_threads(data, 1) != 0))
                     {
                         printf("Error creating threads\n");
                         return -1;
