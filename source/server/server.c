@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <time.h>
 
 #include "service.h"
 
@@ -82,8 +83,17 @@ int main(int argc , char *argv[])
             Thread_data data;
             char client_message[2000], server_message[2000];
             int keep_playing = 1;
+            int valid_input = 0;
+            time_t current_time;
+            struct tm * time_info;
+            char timeString[23];
 
             guesses = calloc(10, sizeof *guesses);
+
+            // Get current time
+            time(&current_time);
+            time_info = localtime(&current_time);
+            strftime(timeString, sizeof(timeString), "%d/%m/%Y -- %H:%M:%S", time_info);
 
             // Ask client name
             strncpy(client_message, writeAndRead(client_sock, "Please enter your name: "), sizeof(client_message));
@@ -94,7 +104,9 @@ int main(int argc , char *argv[])
             strncat(inter_message, ip, sizeof ip);
             strncat(inter_message, "; PORT: ", 9);
             strncat(inter_message, port, strlen(port));
-            strncat(inter_message, ";\n", 3);
+            strncat(inter_message, "; TIME: ", 9);
+            strncat(inter_message, timeString, strlen(timeString));
+            strncat(inter_message, "\n", 2);
             write(pipe_fd[1], inter_message, strlen(inter_message));
             // Generate random number
             sprintf(guesses[0].number, "%d", generate_number());
@@ -108,9 +120,20 @@ int main(int argc , char *argv[])
             while(keep_playing == 1)
             {
                 // Ask the number to the client
-                strncpy(client_message, writeAndRead(client_sock, server_message), sizeof(client_message));
+                while(valid_input != 1)
+                {
+                    strncpy(client_message, writeAndRead(client_sock, server_message), sizeof(client_message));
+                    // Check for the input 0 - for numbers; 1 - for yes/no question
+                    valid_input = input_check(client_message, 0, 1);
+                    if (valid_input == 0)
+                    {
+                        strncpy(server_message, "Answer should be [y]es or [n]o\n", 32);
+                    }
+                }
+                valid_input = 0;
                 // Read user input
-                if (strcmp(client_message, "yes") == 0)
+                if (strcmp(client_message, "yes") == 0 || strcmp(client_message, "y") == 0 ||
+                    strcmp(client_message, "YES") == 0 || strcmp(client_message, "Y") == 0)
                 {
                     // GAME OVER
                     write(client_sock, "-1", 3);
@@ -120,9 +143,31 @@ int main(int argc , char *argv[])
                 {
                     // Keep playing
                     // Ask for regular numbers
-                    guesses[pos].regular = atoi(writeAndRead(client_sock, "Regular numbers?\n"));
+                    strncpy(server_message, "Regular numbers?\n", 18);
+                    while(valid_input != 1)
+                    {
+                        guesses[pos].regular = atoi(writeAndRead(client_sock, server_message));
+                        // Check for the input 0 - for numbers; 1 - for yes/no question
+                        valid_input = input_check("", guesses[pos].regular, 0);
+                        if (valid_input == 0)
+                        {
+                            strncpy(server_message, "Regular numbers should be between 0 and 4\n", 43);
+                        }
+                    }
+                    valid_input = 0;
                     // Ask for good numbers
-                    guesses[pos].good = atoi(writeAndRead(client_sock, "Good numbers?\n"));
+                    strncpy(server_message, "Good numbers?\n", 15);
+                    while(valid_input != 1)
+                    {
+                        guesses[pos].good = atoi(writeAndRead(client_sock, server_message));
+                        // Check for the input 0 - for numbers; 1 - for yes/no question
+                        valid_input = input_check("", guesses[pos].good, 0);
+                        if (valid_input == 0)
+                        {
+                            strncpy(server_message, "Good numbers should be between 0 and 4\n", 40);
+                        }
+                    }
+                    valid_input = 0;
                     data.guesses = guesses;
                     data.pos = pos;
                     //  Run the threads that will find the new number
@@ -134,9 +179,20 @@ int main(int argc , char *argv[])
                     pos++;
                     if (strcmp(guesses[pos].number, "-1") == 0)
                     {
-                        strncpy(server_message, "It seems that you have entered an incorrect value.\nWould you like to start again?\n", 84);
-                        strncpy(client_message, writeAndRead(client_sock, server_message), sizeof(client_message));
-                        if (strcmp(client_message, "no") == 0)
+                        strncpy(server_message, "It seems that you have entered an incorrect value.\nWould you like to start again?\n", 83);
+                        while(valid_input != 1)
+                        {
+                            strncpy(client_message, writeAndRead(client_sock, server_message), sizeof(client_message));
+                            // Check for the input 0 - for numbers; 1 - for yes/no question
+                            valid_input = input_check(client_message, 0, 1);
+                            if (valid_input == 0)
+                            {
+                                strncpy(server_message, "Answer should be [y]es or [n]o\n", 32);
+                            }
+                        }
+                        valid_input = 0;
+                        if (strcmp(client_message, "no") == 0 || strcmp(client_message, "NO") == 0 ||
+                            strcmp(client_message, "n") == 0 || strcmp(client_message, "N") == 0)
                         {
                             // GAME OVER
                             write(client_sock, "-1", 3);
