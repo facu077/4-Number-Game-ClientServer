@@ -91,6 +91,37 @@ char * writeAndRead(int socket, char * message)
     return answer;
 }
 
+// Check for the input type: 0 - for numbers; type: 1 - for yes/no question
+// return 1 for invalid - 0 for valid
+int input_check(char * message, int number, int type)
+{
+    switch (type)
+    {
+        case 0:
+            if (number >= 0 && number <= 4)
+            {
+                return 1;
+            }
+            break;
+        ;
+        case 1:
+            if (strcmp(message, "yes") == 0 || strcmp(message, "no") == 0
+                || strcmp(message, "y") == 0 || strcmp(message, "n") == 0 
+                || strcmp(message, "YES") == 0 || strcmp(message, "NO") == 0
+                || strcmp(message, "Y") == 0 || strcmp(message, "N") == 0)
+            {
+                return 1;
+            }
+            break;
+        ;
+        default:
+            puts("Error: Invalid input type\n");
+            return -1;
+        ;
+    }
+    return 0;
+}
+
 // THREADS
 void * thread_rutine(void * args)
 {

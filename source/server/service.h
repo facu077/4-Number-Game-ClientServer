@@ -18,9 +18,9 @@ typedef struct thread_data
 // SERVER
 int start_server();
 char * writeAndRead(int socket, char * message);
+int input_check(char * message, int number, int type);
 
 // THREADS
-// void * calculate_number(void * args);
 int run_threads(Thread_data data, int threads);
 
 // NUMBER LOGIC
