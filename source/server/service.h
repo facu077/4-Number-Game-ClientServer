@@ -23,5 +23,8 @@ char * writeAndRead(int socket, char * message);
 // void * calculate_number(void * args);
 int run_threads(Thread_data data, int threads);
 
+// NUMBER LOGIC
+int generate_number();
+
 
 #endif
