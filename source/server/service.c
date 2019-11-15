@@ -9,7 +9,7 @@
 #include "service.h"
 
 int guess_number(Guess * guesses, int length);
-void compare_numbers(char * old_number, Guess new_guess);
+void compare_numbers(char * old_number, Guess * new_guess);
 int is_valid(int number);
 
 pthread_mutex_t lock;
@@ -88,39 +88,31 @@ char * writeAndRead(int socket, char * message)
     {
         perror("read failed");
     }
-    // TODO Free answer (how?)
     return answer;
 }
 
 // THREADS
-// TODO send lock by parameter??
-// pthread_mutex_t lock;
-// Is mutex worth it? Should use signals?
-// All the threads could start on a random number and when a compatible number is found
-// a signal can be emited that would kill/stop all the other threads
 void * thread_rutine(void * args)
 {
     // 
     int pos, new_number;
     Thread_data * data = args;
     Guess * guesses;
-	// printf("I'm the thread!\n");
+
     guesses = data -> guesses;
     pos = data -> pos;
-    // printf("I have: good: %d, regular: %d, new number: %s\n",guesses[pos].good, guesses[pos].regular, guesses[pos].number);
-    // generate_number(guesses, pos);
+
     new_number = guess_number(guesses, pos);
     pthread_mutex_lock(&lock);
     if (strcmp(guesses[pos+1].number, "") == 0)
     {
         // First thread!
         sprintf(guesses[pos+1].number, "%d", new_number);
-        printf("%d has been inserted :)\n", new_number);
+        printf("%d has been inserted\n", new_number);
     }
     else
     {
         // Number already found by another thread
-        printf("Someone already wrote there :(\n");
     }
     pthread_mutex_unlock(&lock);
 	pthread_exit(NULL);
@@ -155,12 +147,12 @@ int run_threads(Thread_data data, int threads)
 int generate_number()
 {
     int number = 0000;
+    srand ( time(NULL) );
     // Random number between 1023 and 9876 without duplicates
     while(is_valid(number) == 0)
     {
         number = rand() % (9876 + 1 - 1023) + 1023;
     }
-    // printf("number generated: %d\n", number);
     return number;
 }
 
@@ -172,16 +164,13 @@ int is_valid(int number)
         return 0;
     }
     sprintf(number_string, "%d", number);
-    // printf("Im checking: %s\n", number_string);
     for (int i = 0; i < 3; i++)
     {
         for (int j = i + 1; j < 4; j++)
         {
-            // printf("Checked %c and %c :)\n",number_string[i], number_string[j]);
             if (number_string[i] == number_string[j])
             {
                 // Number with duplicate digits found
-                // printf("YEP %c and %c are equals :)\n",number_string[i], number_string[j]);
                 return 0;
             }
         }
@@ -211,13 +200,11 @@ int guess_number(Guess * guesses, int length)
                 new_number += 1;
             valid_number = is_valid(new_number);
         }
-        // printf("Puting %d in new_Guess\n", new_number);
         sprintf(new_guess.number, "%d", new_number);
         // For each result stored we check if the new number pass all the controls
         for(int pos = 0; pos <= length; pos++)
         {
-            compare_numbers(guesses[pos].number, new_guess);
-            printf("nr: %d = or: %d || ng: %d = og: %d\n",new_guess.regular, guesses[pos].regular, new_guess.good, guesses[pos].good);
+            compare_numbers(guesses[pos].number, &new_guess);
             if (new_guess.regular != guesses[pos].regular || new_guess.good != guesses[pos].good)
             {
                 number_found = 0;
@@ -228,51 +215,56 @@ int guess_number(Guess * guesses, int length)
                 number_found = 1;
             }
         }
+        if (infinite_loop_control > 9876)
+        {
+            // After checking all the posibilities no number found
+            return -1;
+        }
     }
-    printf("returning %s\n", new_guess.number);
     return atoi(new_guess.number);
 }
 
-void compare_numbers(char * old_number, Guess new_guess)
+void compare_numbers(char * old_number, Guess * new_guess)
 {
-    new_guess.regular = 0;
-    new_guess.good = 0;
+    int regular = 0;
+    int good = 0;
 
     // We are going to modify the values so we need a backup
-    char _old_number[4];
-    strncpy(_old_number, old_number, 5);
-    char _new_number[4];
-    strncpy(_new_number, new_guess.number, 5);
+    char * _old_number;
+    char * _new_number;
+    _old_number = calloc(4, sizeof(char));
+    _new_number = calloc(4, sizeof(char));
+    strncpy(_old_number, old_number, 4);
+    strncpy(_new_number, new_guess->number, 4);
 
     // First we go through the two numbers at the same time looking for "good"s
     // and remove the matches from the arrays to prevent duplicates
-    printf("Comparing %s with %s\n",_old_number, _new_number);
+    for (int i = 0; i < 4; i++)
+    {
+        if (_old_number[i] == _new_number[i] && _old_number[i] != '*' && _new_number[i] != '*')
+        {
+            good += 1;
+            _old_number[i] = '*';
+            _new_number[i] = '*';
+        }
+    }
+
+    // Then we go through the rest of the list looking for "regular"s 
+    // removing when found one to prevent duplicates
+
     for (int i = 0; i < 4; i++)
     {
         for (int j = 0; j < 4; j++)
         {
-            if (_old_number[i] == _new_number[j] && _old_number[i] != '*' && _new_number[j] != '*')
+            if (_old_number[i] == _new_number[j] && _old_number[i] != '*' && _new_number[j] != '*' && i != j)
             {
-                new_guess.good += 1;
+                regular += 1;
                 _old_number[i] = '*';
                 _new_number[j] = '*';
             }
         }
     }
-
-    // Then we go through the rest of the list looking for regulars 
-    // removing when found one to prevent duplicates
-    for (int i = 0; i < 3; i++)
-    {
-        for (int j = i + 1; j < 4; j++)
-        {
-            if (_old_number[i] == _new_number[j] && _old_number[i] != '*' && _new_number[j] != '*')
-            {
-                new_guess.regular += 1;
-                _old_number[i] = '*';
-                _new_number[j] = '*';
-            }
-        }
-    }
+    new_guess->regular = regular;
+    new_guess->good = good;
 }
 

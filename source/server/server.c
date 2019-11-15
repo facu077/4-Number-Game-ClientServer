@@ -21,11 +21,17 @@ int main(int argc , char *argv[])
     char * inter_message;
     pid_t pid, logger;
 
+    if (argc != 2)
+    {
+        printf("Usage: ./server <threads>\n");
+        return 0;
+    }
+
+    int number_of_threads = atoi(argv[1]);
     socket_desc = start_server();
     client_len = sizeof(struct sockaddr_in);
     inter_message = calloc(200, sizeof(char));
     port = calloc(6, sizeof(char));
-    // memset(inter_message, 0, sizeof inter_message);
 
     if (pipe(pipe_fd) < 0)
     {
@@ -66,7 +72,6 @@ int main(int argc , char *argv[])
             perror("Cannot getaddrinfo");
             return -1;
         }
-        // port = ntohs(client.sin_port);
         sprintf(port, "%d", ntohs(client.sin_port));
         printf("Client IP: %s and PORT: %s\n", ip, port);
 
@@ -82,7 +87,6 @@ int main(int argc , char *argv[])
 
             // Ask client name
             strncpy(client_message, writeAndRead(client_sock, "Please enter your name: "), sizeof(client_message));
-            // TODO Look in the log.txt file for the user data
             // Write user data to log.txt
             strncpy(inter_message, "Player: ", 9);
             strncat(inter_message, client_message, sizeof(client_message));
@@ -92,18 +96,15 @@ int main(int argc , char *argv[])
             strncat(inter_message, port, strlen(port));
             strncat(inter_message, ";\n", 3);
             write(pipe_fd[1], inter_message, strlen(inter_message));
-            // TODO Generate random number
-            // strncpy(guesses[0].number, itoa(generate_number()), 5);
+            // Generate random number
             sprintf(guesses[0].number, "%d", generate_number());
-            // TODO Improve this (and all) strcpy, strcat,strcat...
+            // Set welcome message
             strncpy(server_message, "Welcome ", 9);
             strncat(server_message, client_message, sizeof(client_message));
-            // strncat(server_message, ", you have played 8 times, with an average of 4 attempts per correct answer\n", 77);
             strncat(server_message, "\n", 2);
             strncat(server_message, "Is your number ", 16);
             strncat(server_message, guesses[0].number, 4);
             strncat(server_message, "?\n", 3);
-            // Set welcome message to client with a random number
             while(keep_playing == 1)
             {
                 // Ask the number to the client
@@ -112,7 +113,6 @@ int main(int argc , char *argv[])
                 if (strcmp(client_message, "yes") == 0)
                 {
                     // GAME OVER
-                    // TODO save result in log.txt
                     write(client_sock, "-1", 3);
                     keep_playing = 0;
                 }
@@ -123,17 +123,32 @@ int main(int argc , char *argv[])
                     guesses[pos].regular = atoi(writeAndRead(client_sock, "Regular numbers?\n"));
                     // Ask for good numbers
                     guesses[pos].good = atoi(writeAndRead(client_sock, "Good numbers?\n"));
-                    // TODO Generate new number using threads
                     data.guesses = guesses;
                     data.pos = pos;
                     //  Run the threads that will find the new number
-                    if ((run_threads(data, 1) != 0))
+                    if ((run_threads(data, number_of_threads) != 0))
                     {
                         printf("Error creating threads\n");
                         return -1;
                     }
                     pos++;
-                    // Todo improve this message generation
+                    if (strcmp(guesses[pos].number, "-1") == 0)
+                    {
+                        strncpy(server_message, "It seems that you have entered an incorrect value.\nWould you like to start again?\n", 84);
+                        strncpy(client_message, writeAndRead(client_sock, server_message), sizeof(client_message));
+                        if (strcmp(client_message, "no") == 0)
+                        {
+                            // GAME OVER
+                            write(client_sock, "-1", 3);
+                            keep_playing = 0;
+                        }
+                        else
+                        {
+                            memset(guesses, 0, sizeof *guesses);
+                            pos = 0;
+                            sprintf(guesses[0].number, "%d", generate_number());
+                        }
+                    }
                     strncpy(server_message, "Is your number ", 16);
                     strncat(server_message, guesses[pos].number, 4);
                     strncat(server_message, "?\n", 3);
