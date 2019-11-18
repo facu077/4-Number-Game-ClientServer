@@ -11,6 +11,7 @@
 int guess_number(Guess * guesses, int length);
 void compare_numbers(char * old_number, Guess * new_guess);
 int is_valid(int number);
+void clean_string(char *s);
 
 pthread_mutex_t lock;
 
@@ -82,14 +83,30 @@ char * writeAndRead(int socket, char * message)
     // Write to client
     write(socket, message, strlen(message));
     // Read answer from client
-    read_size = read(socket, answer, sizeof(answer));
+    read_size = read(socket, answer, 2000);
 
     if(read_size == -1)
     {
         perror("read failed");
     }
+    clean_string(answer);
     return answer;
 }
+
+// For telnet support
+void clean_string(char *s)
+{
+    char *p2 = s;
+    while(*s != '\0') {
+        if(*s != '\r' && *s != '\n') {
+            *p2++ = *s++;
+        } else {
+            ++s;
+        }
+    }
+    *p2 = '\0';
+}
+
 
 // Check for the input type: 0 - for numbers; type: 1 - for yes/no question
 // return 1 for invalid - 0 for valid

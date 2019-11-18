@@ -48,7 +48,7 @@ int main(int argc , char *argv[])
         fd = open ("log.txt",O_RDWR|O_APPEND|O_CREAT, S_IRUSR|S_IWUSR);
         while (keep_listening == 1)
         {
-            read_size = read(pipe_fd[0], inter_message, sizeof inter_message);
+            read_size = read(pipe_fd[0], inter_message, 200);
             if (strcmp(inter_message, "-1") == 0)
             {
                 keep_listening = 0;
@@ -200,7 +200,8 @@ int main(int argc , char *argv[])
                         }
                         else
                         {
-                            memset(guesses, 0, sizeof *guesses);
+                            free(guesses);
+                            guesses = calloc(10, sizeof *guesses);
                             pos = 0;
                             sprintf(guesses[0].number, "%d", generate_number());
                         }

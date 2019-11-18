@@ -7,10 +7,10 @@
 #include <netdb.h>
 #include "service.h"
 
-int connect_server(char * server_ip)
+int connect_server(char * server_ip, char * server_port)
 {
     char *hostname = server_ip;
-    char *service = "8888";
+    char *port = server_port;
     struct addrinfo hints, *res;
     int err;
     int sock;
@@ -20,7 +20,7 @@ int connect_server(char * server_ip)
     hints.ai_family = PF_UNSPEC;
 
 
-    if ((err = getaddrinfo(hostname, service, &hints, &res)) != 0)
+    if ((err = getaddrinfo(hostname, port, &hints, &res)) != 0)
     {
         printf("error %d : %s\n", err, gai_strerror(err));
         return -1;

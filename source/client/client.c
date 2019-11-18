@@ -10,22 +10,19 @@ int connect_server();
 int main(int argc , char *argv[])
 {
     int sock, read_size;
-    int keep_playing = 1;
-    char message[1000] , server_reply[2000];
+    char message[1000], server_reply[2000];
 
-    if (argc != 2)
+    if (argc != 3)
     {
-        printf("Usage: ./client <server_ip>\n");
+        printf("Usage: ./client <server_ip> <server_port>\n");
         return 0;
     }
-    sock = connect_server(argv[1]);
+    sock = connect_server(argv[1], argv[2]);
     memset(message, 0, sizeof message);
 
     // keep communicating with server
-    while(keep_playing == 1)
+    while((read_size = read(sock, server_reply, sizeof(server_reply))) > 0)
     {
-        // read from the server
-        read_size = read(sock, server_reply, sizeof server_reply);
         if (read_size < 0)
         {
             puts("read failed");
@@ -33,9 +30,10 @@ int main(int argc , char *argv[])
         if (strcmp(server_reply, "-1") == 0)
         {
             puts("Thanks for playing :)\n");
-            keep_playing = 0;
+            close(sock);
+            puts("Server socket closed\n");
         }
-        else
+        else if(read_size > 0)
         {
             // write to the user
             write(STDOUT_FILENO, server_reply, read_size);
@@ -44,7 +42,5 @@ int main(int argc , char *argv[])
             write(sock, message, strlen(message));
         }
     }
-    close(sock);
-    puts("Server socket closed\n");
     return 0;
 }
