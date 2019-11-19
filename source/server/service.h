@@ -26,5 +26,8 @@ int run_threads(Thread_data data, int threads);
 // NUMBER LOGIC
 int generate_number();
 
+// CHILD
+int run_child(int client_sock, char * ip, char *port, int pipe_fd[2], int threads_number);
+
 
 #endif

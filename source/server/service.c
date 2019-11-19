@@ -24,7 +24,7 @@ int start_server()
     int sfd, s;
 
     memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
+    hints.ai_family = AF_INET6;    /* Allow IPv4 or IPv6 */
     hints.ai_socktype = SOCK_STREAM; /* Stream socket */
     hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
 
@@ -316,3 +316,152 @@ void compare_numbers(char * old_number, Guess * new_guess)
     new_guess->good = good;
 }
 
+// CHILD
+
+int run_child(int client_sock, char * ip, char *port, int pipe_fd[2], int threads_number)
+{
+    Guess * guesses;
+    Thread_data data;
+    char client_message[2000], server_message[2000];
+    int keep_playing = 1;
+    int valid_input = 0;
+    int pos;
+    time_t current_time;
+    struct tm * time_info;
+    char timeString[23];
+    char * inter_message;
+    inter_message = calloc(200, sizeof(char));
+
+
+    guesses = calloc(10, sizeof *guesses);
+
+    // Get current time
+    time(&current_time);
+    time_info = localtime(&current_time);
+    strftime(timeString, sizeof(timeString), "%d/%m/%Y -- %H:%M:%S", time_info);
+
+    // Ask client name
+    strncpy(client_message, writeAndRead(client_sock, "Please enter your name: "), sizeof(client_message));
+    // Write user data to log.txt
+    strncpy(inter_message, "Player: ", 9);
+    strncat(inter_message, client_message, sizeof(client_message));
+    strncat(inter_message, "; IP: ", 7);
+    strncat(inter_message, ip, strlen(ip));
+    strncat(inter_message, "; PORT: ", 9);
+    strncat(inter_message, port, strlen(port));
+    strncat(inter_message, "; TIME: ", 9);
+    strncat(inter_message, timeString, strlen(timeString));
+    strncat(inter_message, "\n", 2);
+    write(pipe_fd[1], inter_message, strlen(inter_message));
+    // Generate random number
+    sprintf(guesses[0].number, "%d", generate_number());
+    // Set welcome message
+    strncpy(server_message, "Welcome ", 9);
+    strncat(server_message, client_message, sizeof(client_message));
+    strncat(server_message, "\n", 2);
+    strncat(server_message, "Is your number ", 16);
+    strncat(server_message, guesses[0].number, 4);
+    strncat(server_message, "?\n", 3);
+    while(keep_playing == 1)
+    {
+        // Ask the number to the client
+        while(valid_input != 1)
+        {
+            strncpy(client_message, writeAndRead(client_sock, server_message), sizeof(client_message));
+            // Check for the input 0 - for numbers; 1 - for yes/no question
+            valid_input = input_check(client_message, 0, 1);
+            if (valid_input == 0)
+            {
+                strncpy(server_message, "Answer should be [y]es or [n]o\n", 32);
+            }
+        }
+        valid_input = 0;
+        // Read user input
+        if (strcmp(client_message, "yes") == 0 || strcmp(client_message, "y") == 0 ||
+            strcmp(client_message, "YES") == 0 || strcmp(client_message, "Y") == 0)
+        {
+            // GAME OVER
+            write(client_sock, "-1", 3);
+            keep_playing = 0;
+        }
+        else
+        {
+            // Keep playing
+            // Ask for regular numbers
+            strncpy(server_message, "Regular numbers?\n", 18);
+            while(valid_input != 1)
+            {
+                guesses[pos].regular = atoi(writeAndRead(client_sock, server_message));
+                // Check for the input 0 - for numbers; 1 - for yes/no question
+                valid_input = input_check("", guesses[pos].regular, 0);
+                if (valid_input == 0)
+                {
+                    strncpy(server_message, "Regular numbers should be between 0 and 4\n", 43);
+                }
+            }
+            valid_input = 0;
+            // Ask for good numbers
+            strncpy(server_message, "Good numbers?\n", 15);
+            while(valid_input != 1)
+            {
+                guesses[pos].good = atoi(writeAndRead(client_sock, server_message));
+                // Check for the input 0 - for numbers; 1 - for yes/no question
+                valid_input = input_check("", guesses[pos].good, 0);
+                if (valid_input == 0)
+                {
+                    strncpy(server_message, "Good numbers should be between 0 and 4\n", 40);
+                }
+            }
+            valid_input = 0;
+            data.guesses = guesses;
+            data.pos = pos;
+            //  Run the threads that will find the new number
+            if ((run_threads(data, threads_number) != 0))
+            {
+                printf("Error creating threads\n");
+                return -1;
+            }
+            pos++;
+            if (strcmp(guesses[pos].number, "-1") == 0)
+            {
+                strncpy(server_message, "It seems that you have entered an incorrect value.\nWould you like to start again?\n", 83);
+                while(valid_input != 1)
+                {
+                    strncpy(client_message, writeAndRead(client_sock, server_message), sizeof(client_message));
+                    // Check for the input 0 - for numbers; 1 - for yes/no question
+                    valid_input = input_check(client_message, 0, 1);
+                    if (valid_input == 0)
+                    {
+                        strncpy(server_message, "Answer should be [y]es or [n]o\n", 32);
+                    }
+                }
+                valid_input = 0;
+                if (strcmp(client_message, "no") == 0 || strcmp(client_message, "NO") == 0 ||
+                    strcmp(client_message, "n") == 0 || strcmp(client_message, "N") == 0)
+                {
+                    // GAME OVER
+                    write(client_sock, "-1", 3);
+                    keep_playing = 0;
+                }
+                else
+                {
+                    free(guesses);
+                    guesses = calloc(10, sizeof *guesses);
+                    pos = 0;
+                    sprintf(guesses[0].number, "%d", generate_number());
+                }
+            }
+            strncpy(server_message, "Is your number ", 16);
+            strncat(server_message, guesses[pos].number, 4);
+            strncat(server_message, "?\n", 3);
+        }
+    }
+    puts("Client disconnected");
+    fflush(stdout);
+
+    close(client_sock);
+    puts("Client socket closed");
+    free(inter_message);
+    free(guesses);
+    return 0;
+}

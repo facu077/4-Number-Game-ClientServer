@@ -4,8 +4,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include "service.h"
-
-int connect_server();
  
 int main(int argc , char *argv[])
 {
